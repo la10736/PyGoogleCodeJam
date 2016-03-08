@@ -3,7 +3,7 @@ import unittest
 from io import StringIO
 
 import sys
-
+from operator import attrgetter
 
 class Obj(object):
     def __init__(self, x, y, z, vx, vy, vz):
@@ -27,13 +27,8 @@ def mean(values):
 
 class M(Obj):
     def __init__(self, *objs):
-        x = mean([o.x for o in objs])
-        y = mean([o.y for o in objs])
-        z = mean([o.z for o in objs])
-        vx = mean([o.vx for o in objs])
-        vy = mean([o.vy for o in objs])
-        vz = mean([o.vz for o in objs])
-        super(M, self).__init__(x, y, z, vx, vy, vz)
+        args = [mean([getattr(o, a) for o in objs]) for a in ("x", "y", "z", "vx", "vy", "vz")]
+        super(M, self).__init__(*args)
         self.objs = objs
 
 
