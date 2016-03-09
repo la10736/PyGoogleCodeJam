@@ -17,9 +17,17 @@ def do_single(case):
 
 def do(f_in, f_out):
     tests = int(f_in.readline())
+    start = time.time()
     test_cases = [parse_test_case(f_in) for _ in range(tests)]
+    l = len(test_cases)
     for pos, case in enumerate(test_cases):
-        f_out.write("Case #{}: ".format(pos + 1) + str(do_single(case)) + "\n")
+        pos += 1
+        print("#"*10 + "{}/{}".format(pos, l))
+        s = time.time()
+        f_out.write("Case #{}: ".format(pos) + str(do_single(case)) + "\n")
+        print("Elapsed time: " + str(time.time()-s))
+    print("Total Elapsed time: " + str(time.time()-start))
+    print("=" * 20 + "  END  " + "=" * 20)
 
 
 def usage():
