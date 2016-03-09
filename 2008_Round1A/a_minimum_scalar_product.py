@@ -36,12 +36,10 @@ class VectorPair(object):
         return self.v1[orig] * self.v2[orig] + self.v1[swap] * self.v2[swap]
 
     def best_permutation(self):
-        old = self
-        pair = old.better_permutation()
-        while pair is not old:
-            old = pair
-            pair = old.better_permutation()
-        return pair
+        v1, v2 = self.v1, self.v2
+        v1.sort()
+        v2.sort(reverse=True)
+        return VectorPair(v1, v2)
 
     @classmethod
     def _product(cls, v1, v2):
