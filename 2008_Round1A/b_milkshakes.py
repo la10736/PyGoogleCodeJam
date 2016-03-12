@@ -1,8 +1,21 @@
+import os
 import unittest
 import sys
 import time
 
 import itertools
+from io import StringIO
+
+# Set nr to  A, B or C
+NR = "B"
+
+FILE_TEMPLATE = "{}-{}-practice.{}"
+
+
+def file_name(direction, dimension="small", nr=NR):
+    if direction not in ["in", "out"]:
+        raise ValueError()
+    return FILE_TEMPLATE.format(nr, dimension, direction)
 
 
 class MilkshakeShop(object):
@@ -97,28 +110,102 @@ class Test(unittest.TestCase):
         c1 = Customer(Flavor(1, True))
         self.assertIsNone(shop.best_planning(c0, c1))
 
+    def test_parse_test_case(self):
+        si = StringIO("""
+5
+3
+1 1 1
+2 1 0 2 0
+1 5 0
+""".strip())
+        shop, customers = parse_test_case(si)
+        self.assertEqual(5, len(shop.flavors))
+        self.assertEqual(3, len(customers))
+        self.assertEqual("1m-1|2-5", "-".join(map(str, customers)))
+
+    def test_exec_example(self):
+        si = StringIO("""
+2
+5
+3
+1 1 1
+2 1 0 2 0
+1 5 0
+1
+2
+1 1 0
+1 1 1
+""".strip())
+        so = StringIO()
+        for pos, case in enumerate(get_test_cases(si)):
+            dump_case_result(case, so, pos+1)
+        self.assertEqual(so.getvalue().strip(), """
+Case #1: 1 0 0 0 0
+Case #2: IMPOSSIBLE
+""".strip())
+
+    def test_solution(self):
+        f_in_name = file_name("in")
+        f_out_name = file_name("out")
+        if not all(map(os.path.isfile, [f_in_name, f_out_name])):
+            self.skipTest("Both small in and out should be present")
+        f_in = open(f_in_name)
+        f_out = StringIO()
+        do(f_in, f_out)
+        with open(f_out_name) as fixture:
+            self.assertEqual(f_out.getvalue(), fixture.read())
+
+
+def parse_customer(line):
+    elements = line.split(" ")
+    choices = int(elements[0])
+    flavors = []
+    for i in range(0, 2*choices, 2):
+        flavors.append(Flavor(int(elements[i+1]), int(elements[i+2])))
+    return Customer(*flavors)
+
 
 def parse_test_case(f_in):
-    raise NotImplementedError()
+    shop = MilkshakeShop(int(f_in.readline().strip()))
+    n_customers = int(f_in.readline().strip())
+    customers = [parse_customer(f_in.readline()) for _ in range(n_customers)]
+    return shop, customers
 
 
 def do_single(case):
-    raise NotImplementedError()
+    shop, customers = case
+    planning = shop.trivial_planning(*customers)
+    if planning is None:
+        return "IMPOSSIBLE"
+    return " ".join([str(int(f.is_malted)) for f in planning])
 
 
-def do(f_in, f_out):
+def get_test_cases(f_in):
     tests = int(f_in.readline())
-    start = time.time()
-    test_cases = [parse_test_case(f_in) for _ in range(tests)]
+    return [parse_test_case(f_in) for _ in range(tests)]
+
+
+# noinspection PyUnusedLocal
+def none_log(text):
+    pass
+
+
+def do(f_in, f_out, log=none_log):
+    test_cases = get_test_cases(f_in)
     l = len(test_cases)
+    start = time.time()
     for pos, case in enumerate(test_cases):
         pos += 1
-        print("#" * 10 + "{}/{}".format(pos, l))
+        log("#" * 10 + "{}/{}".format(pos, l))
         s = time.time()
-        f_out.write("Case #{}: ".format(pos) + str(do_single(case)) + "\n")
-        print("Elapsed time: " + str(time.time() - s))
-    print("Total Elapsed time: " + str(time.time() - start))
-    print("=" * 20 + "  END  " + "=" * 20)
+        dump_case_result(case, f_out, pos)
+        log("Elapsed time: " + str(time.time() - s))
+    log("Total Elapsed time: " + str(time.time() - start))
+    log("=" * 20 + "  END  " + "=" * 20)
+
+
+def dump_case_result(case, f_out, pos):
+    f_out.write("Case #{}: ".format(pos) + str(do_single(case)) + "\n")
 
 
 def usage():
@@ -131,12 +218,9 @@ if __name__ == "__main__":
         sys.exit(-1)
 
     src = open(sys.argv[1])
-    dest = sys.stdout
+    dst = sys.stdout
     try:
-        dest = open(sys.argv[2], "w")
+        dst = open(sys.argv[2], "w")
     except IndexError:
         pass
-    do(src, dest)
-
-if __name__ == '__main__':
-    unittest.main()
+    do(src, dst, log=print)
