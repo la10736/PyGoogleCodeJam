@@ -2,20 +2,12 @@ import os
 import unittest
 import sys
 import time
-
-import itertools
 from io import StringIO
+import itertools
+
 
 # Set nr to  A, B or C
 NR = "B"
-
-FILE_TEMPLATE = "{}-{}-practice.{}"
-
-
-def file_name(direction, dimension="small", nr=NR):
-    if direction not in ["in", "out"]:
-        raise ValueError()
-    return FILE_TEMPLATE.format(nr, dimension, direction)
 
 
 class MilkshakeShop(object):
@@ -79,6 +71,7 @@ class Customer(object):
         return Flavor.list_code(self._flavors)
 
 
+# noinspection PyPep8Naming
 class Test(unittest.TestCase):
     def test_base(self):
         shop = MilkshakeShop(4)
@@ -111,20 +104,21 @@ class Test(unittest.TestCase):
         self.assertIsNone(shop.best_planning(c0, c1))
 
     def test_parse_test_case(self):
-        si = StringIO("""
+        INPUT = """
 5
 3
 1 1 1
 2 1 0 2 0
 1 5 0
-""".strip())
+        """
+        si = StringIO(INPUT.strip())
         shop, customers = parse_test_case(si)
         self.assertEqual(5, len(shop.flavors))
         self.assertEqual(3, len(customers))
         self.assertEqual("1m-1|2-5", "-".join(map(str, customers)))
 
     def test_exec_example(self):
-        si = StringIO("""
+        INPUT = """
 2
 5
 3
@@ -135,14 +129,16 @@ class Test(unittest.TestCase):
 2
 1 1 0
 1 1 1
-""".strip())
-        so = StringIO()
-        for pos, case in enumerate(get_test_cases(si)):
-            dump_case_result(case, so, pos+1)
-        self.assertEqual(so.getvalue().strip(), """
+        """
+        OUTPUT = """
 Case #1: 1 0 0 0 0
 Case #2: IMPOSSIBLE
-""".strip())
+        """
+        si = StringIO(INPUT.strip())
+        so = StringIO()
+        for pos, case in enumerate(get_test_cases(si)):
+            dump_case_result(case, so, pos + 1)
+        self.assertEqual(so.getvalue().strip(), OUTPUT.strip())
 
     def test_solution(self):
         f_in_name = file_name("in")
@@ -160,8 +156,8 @@ def parse_customer(line):
     elements = line.split(" ")
     choices = int(elements[0])
     flavors = []
-    for i in range(0, 2*choices, 2):
-        flavors.append(Flavor(int(elements[i+1]), int(elements[i+2])))
+    for i in range(0, 2 * choices, 2):
+        flavors.append(Flavor(int(elements[i + 1]), int(elements[i + 2])))
     return Customer(*flavors)
 
 
@@ -208,8 +204,29 @@ def dump_case_result(case, f_out, pos):
     f_out.write("Case #{}: ".format(pos) + str(do_single(case)) + "\n")
 
 
+FILE_TEMPLATE = "{}-{}-practice.{}"
+
+
+def file_name(direction, dimension="small", nr=NR):
+    if direction not in ["in", "out"]:
+        raise ValueError()
+    return FILE_TEMPLATE.format(nr, dimension, direction)
+
+
 def usage():
-    print("""{} <input_file> [output_file]""".format(sys.argv[0]))
+    print("""{} <input_file> [output_file]
+or
+{} small|large [-]
+    """.format(sys.argv[0]))
+
+
+def default_files(dimension, use_stdout):
+    f_in_name = file_name("in", dimension)
+    f_out_name = file_name("out", dimension)
+    fin = open(f_in_name)
+    if use_stdout:
+        return fin, sys.stdout
+    return fin, open(f_out_name, "w")
 
 
 if __name__ == "__main__":
@@ -217,10 +234,13 @@ if __name__ == "__main__":
         usage()
         sys.exit(-1)
 
-    src = open(sys.argv[1])
-    dst = sys.stdout
-    try:
-        dst = open(sys.argv[2], "w")
-    except IndexError:
-        pass
-    do(src, dst, log=print)
+    if sys.argv[1] in ["small", "large"]:
+        stdout_option = len(sys.argv) > 2 and sys.argv[2] == "-"
+        src, dst = default_files(sys.argv[1], stdout_option)
+    else:
+        src, dst = open(sys.argv[1]), sys.stdout
+        try:
+            dst = open(sys.argv[2], "w")
+        except IndexError:
+            pass
+    do(src, dst, print)
