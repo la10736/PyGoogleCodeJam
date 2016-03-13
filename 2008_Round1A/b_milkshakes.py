@@ -189,6 +189,7 @@ def none_log(text):
 def do(f_in, f_out, log=none_log):
     test_cases = get_test_cases(f_in)
     l = len(test_cases)
+    log("=" * 20 + " START " + "=" * 20)
     start = time.time()
     for pos, case in enumerate(test_cases):
         pos += 1
