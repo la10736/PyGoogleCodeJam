@@ -4,7 +4,6 @@ import sys
 import time
 from io import StringIO
 import itertools
-import operator
 
 
 # Set nr to  A, B or C
@@ -14,17 +13,16 @@ NR = "B"
 class Solution(object):
     def __init__(self):
         self._flavors = set()
+        self._cost = 0
 
     def add(self, flavor):
         if flavor.opposite() in self._flavors:
             raise ValueError("Invalid Solution")
         self._flavors.add(flavor)
+        self._cost += int(flavor.is_malted)
 
     def has(self, flavor):
         return flavor in self._flavors
-
-    def cost(self):
-        return sum(map(operator.attrgetter("is_malted"), self._flavors))
 
 
 class MilkshakeShop(object):
