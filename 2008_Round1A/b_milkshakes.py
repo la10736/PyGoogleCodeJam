@@ -4,10 +4,27 @@ import sys
 import time
 from io import StringIO
 import itertools
+import operator
 
 
 # Set nr to  A, B or C
 NR = "B"
+
+
+class Solution(object):
+    def __init__(self):
+        self._flavors = set()
+
+    def add(self, flavor):
+        if flavor.opposite() in self._flavors:
+            raise ValueError("Invalid Solution")
+        self._flavors.add(flavor)
+
+    def has(self, flavor):
+        return flavor in self._flavors
+
+    def cost(self):
+        return sum(map(operator.attrgetter("is_malted"), self._flavors))
 
 
 class MilkshakeShop(object):
@@ -26,6 +43,14 @@ class MilkshakeShop(object):
                 return [Flavor(f, malted) for f, malted in zip(self._flavors, c)]
         return None
 
+    def speed_planning(self, *customers):
+        customers = set(customers)
+        solution = Solution()
+        while customers:
+            customer = customers.pop()
+            for f in customer.flavors:
+                pass
+
     def best_planning(self, *customers):
         return self.trivial_planning(*customers)
 
@@ -43,8 +68,17 @@ class Flavor(object):
     def is_malted(self):
         return self._malted
 
+    def opposite(self):
+        return Flavor(self.name, not self.is_malted)
+
     def __str__(self):
         return self._name + ("m" if self.is_malted else "")
+
+    def __eq__(self, other):
+        return self.name == other.name and self.is_malted == other.is_malted
+
+    def __hash__(self):
+        return (1 + int(self.is_malted)) * hash(self._name)
 
     @classmethod
     def list_code(cls, flavors):
@@ -66,6 +100,10 @@ class Customer(object):
             if code in l:
                 return True
         return False
+
+    @property
+    def flavors(self):
+        return self._flavors[:]
 
     def __str__(self):
         return Flavor.list_code(self._flavors)
@@ -96,6 +134,24 @@ class Test(unittest.TestCase):
         c2 = Customer(Flavor(5, False))
         result = shop.best_planning(c0, c1, c2)
         self.assertEqual("1m|2|3|4|5", Flavor.list_code(result))
+
+    def test_invalid_solution(self):
+        s = Solution()
+        s.add(Flavor(1, True))
+        with self.assertRaises(ValueError):
+            s.add(Flavor(1, False))
+
+    def test_solution_cost(self):
+        s = Solution()
+        self.assertEqual(0, s.cost())
+        s.add(Flavor(1, True))
+        self.assertEqual(1, s.cost())
+        s.add(Flavor(2, True))
+        self.assertEqual(2, s.cost())
+        s.add(Flavor(3, False))
+        s.add(Flavor(4, False))
+        s.add(Flavor(7, True))
+        self.assertEqual(3, s.cost())
 
     def test_impossible(self):
         shop = MilkshakeShop(1)
