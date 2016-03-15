@@ -61,8 +61,11 @@ class MilkshakeShop(object):
         if not customers:
             return solution
         customer = customers[0]
-        if customer.valid_solution(solution):
-            return self._sub_planning(solution, *customers[1:])
+        while customer.valid_solution(solution):
+            customers = customers[1:]
+            if not customers:
+                return solution
+            customer = customers[0]
         solutions = []
         for flavor in customer.flavors:
             if not solution.compatible(flavor):
@@ -80,6 +83,8 @@ class MilkshakeShop(object):
     def smart_planning(self, *customers):
         customers = sorted(customers, key=operator.attrgetter("n_flavors"))
         solution = Solution()
+        for f in self._unmalted_no_conflict_flavors(*customers):
+            solution.add(f)
         for pos, customer in enumerate(customers):
             if customer.n_flavors > 1:
                 customers = customers[pos:]
@@ -93,6 +98,15 @@ class MilkshakeShop(object):
             return self._solution_to_list(solution)
         except ValueError:
             return None
+
+    def _unmalted_no_conflict_flavors(self, *customers):
+        unmalted = set()
+        malted = set()
+        for c in customers:
+            unmalted.update(map(lambda code:Flavor(code, False), c.unmalted))
+            malted.update(map(lambda code:Flavor(code, True), c.malted))
+        return {f for f in unmalted if f.opposite() not in malted}
+
 
     def best_planning(self, *customers):
         return self.smart_planning(*customers)
@@ -139,13 +153,13 @@ class Customer(object):
         if not len(flavors):
             raise ValueError()
         self._flavors = list(flavors)
-        self._maletd_flavors_code = {f.name for f in self._flavors if f.is_malted}
-        self._unmaletd_flavors_code = {f.name for f in self._flavors if not f.is_malted}
+        self._malted_flavors_code = {f.name for f in self._flavors if f.is_malted}
+        self._unmalted_flavors_code = {f.name for f in self._flavors if not f.is_malted}
 
     def satisfied(self, malted_list):
         for pos, is_malted in enumerate(malted_list):
             code = str(pos + 1)
-            l = self._maletd_flavors_code if is_malted else self._unmaletd_flavors_code
+            l = self._malted_flavors_code if is_malted else self._unmalted_flavors_code
             if code in l:
                 return True
         return False
@@ -160,6 +174,14 @@ class Customer(object):
     @property
     def flavors(self):
         return self._flavors[:]
+
+    @property
+    def malted(self):
+        return self._malted_flavors_code.copy()
+
+    @property
+    def unmalted(self):
+        return self._unmalted_flavors_code.copy()
 
     def __str__(self):
         return Flavor.list_code(self._flavors)
