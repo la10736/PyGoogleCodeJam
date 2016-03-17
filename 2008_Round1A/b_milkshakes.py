@@ -41,6 +41,91 @@ class Solution(object):
         return s
 
 
+class FlavorPlanner(object):
+    def __init__(self, shop, *customers):
+        self._shop = shop
+        ":type: MilkshakeShop"
+        self._customers = customers
+
+    def plan(self):
+        raise NotImplementedError()
+
+
+class TrivialFlavorPlanner(FlavorPlanner):
+    def plan(self):
+        flavors = self._shop.flavors
+        candidates = itertools.product([False, True], repeat=len(flavors))
+        candidates = sorted(candidates, key=sum)
+        for c in candidates:
+            if all(map(lambda customer: customer.satisfied(c), self._customers)):
+                return [Flavor(f, malted) for f, malted in zip(flavors, c)]
+        return None
+
+
+class SmartFlavorPlanner(FlavorPlanner):
+    def __init__(self, shop, *customers):
+        super().__init__(shop, *customers)
+
+    def plan(self):
+        solution = Solution()
+        self._customers = sorted(self._customers, key=operator.attrgetter("n_flavors"))
+        for f in self._unmalted_no_conflict_flavors():
+            solution.add(f)
+        first = 0
+        for pos, customer in enumerate(self._customers):
+            if customer.n_flavors > 1:
+                first = pos
+                break
+            try:
+                solution.add(customer.flavors[0])
+            except ValueError:
+                return None
+        try:
+            solution = self._sub_planning(solution, first)
+            return self._to_list(solution)
+        except ValueError:
+            return None
+
+    def _sub_planning(self, solution, pos):
+        pos = self._skip_first_satisfied_customers(solution, pos)
+        if not self._customers[pos:]:
+            return solution
+        customer = self._customers[pos]
+        solutions = []
+        for flavor in customer.flavors:
+            if not solution.compatible(flavor):
+                continue
+            new_solution = solution.copy()
+            new_solution.add(flavor)
+            try:
+                solutions.append(self._sub_planning(new_solution, pos + 1))
+            except ValueError:
+                pass
+        if not solutions:
+            raise ValueError("Invalid solution")
+        return min(solutions, key=operator.attrgetter("cost"))
+
+    def _skip_first_satisfied_customers(self, solution, start):
+        for pos, customer in enumerate(self._customers[start:]):
+            if not customer.valid_solution(solution):
+                return start + pos
+        return len(self._customers)
+
+    def _unmalted_no_conflict_flavors(self):
+        unmalted = set()
+        malted = set()
+        for c in self._customers:
+            unmalted.update(map(lambda code: Flavor(code, False), c.unmalted))
+            malted.update(map(lambda code: Flavor(code, True), c.malted))
+        return {f for f in unmalted if f.opposite() not in malted}
+
+    def _to_list(self, solution):
+        result = []
+        for f in [Flavor(f, False) for f in self._shop.flavors]:
+            result.append(f if not solution.has(f.opposite()) else f.opposite())
+        return result
+
+
 class MilkshakeShop(object):
     def __init__(self, flavors_numbers):
         self._flavors = [str(i) for i in range(1, flavors_numbers + 1)]
@@ -49,56 +134,6 @@ class MilkshakeShop(object):
     def flavors(self):
         return self._flavors[:]
 
-    def trivial_planning(self, *customers):
-        candidates = itertools.product([False, True], repeat=len(self._flavors))
-        candidates = sorted(candidates, key=sum)
-        for c in candidates:
-            if all(map(lambda customer: customer.satisfied(c), customers)):
-                return [Flavor(f, malted) for f, malted in zip(self._flavors, c)]
-        return None
-
-    def _sub_planning(self, solution, *customers):
-        if not customers:
-            return solution
-        customer = customers[0]
-        while customer.valid_solution(solution):
-            customers = customers[1:]
-            if not customers:
-                return solution
-            customer = customers[0]
-        solutions = []
-        for flavor in customer.flavors:
-            if not solution.compatible(flavor):
-                continue
-            new_solution = solution.copy()
-            new_solution.add(flavor)
-            try:
-                solutions.append(self._sub_planning(new_solution, *customers[1:]))
-            except ValueError:
-                pass
-        if not solutions:
-            raise ValueError("Invalid solution")
-        return min(solutions, key=operator.attrgetter("cost"))
-
-    def smart_planning(self, *customers):
-        customers = sorted(customers, key=operator.attrgetter("n_flavors"))
-        solution = Solution()
-        for f in self._unmalted_no_conflict_flavors(*customers):
-            solution.add(f)
-        for pos, customer in enumerate(customers):
-            if customer.n_flavors > 1:
-                customers = customers[pos:]
-                break
-            try:
-                solution.add(customer.flavors[0])
-            except ValueError:
-                return None
-        try:
-            solution = self._sub_planning(solution, *customers)
-            return self._solution_to_list(solution)
-        except ValueError:
-            return None
-
     def _unmalted_no_conflict_flavors(self, *customers):
         unmalted = set()
         malted = set()
@@ -106,10 +141,6 @@ class MilkshakeShop(object):
             unmalted.update(map(lambda code:Flavor(code, False), c.unmalted))
             malted.update(map(lambda code:Flavor(code, True), c.malted))
         return {f for f in unmalted if f.opposite() not in malted}
-
-
-    def best_planning(self, *customers):
-        return self.smart_planning(*customers)
 
     def _solution_to_list(self, solution):
         result = []
@@ -202,13 +233,13 @@ class Test(unittest.TestCase):
     def test_trivial(self):
         shop = MilkshakeShop(2)
         customer = Customer(Flavor(1, False), Flavor(2, True))
-        result = shop.best_planning(customer)
+        result = SmartFlavorPlanner(shop, customer).plan()
         self.assertEqual("1|2", Flavor.list_code(result))
 
     def test_trivial_smart_planning(self):
         shop = MilkshakeShop(2)
         customer = Customer(Flavor(1, False), Flavor(2, True))
-        result = shop.smart_planning(customer)
+        result = SmartFlavorPlanner(shop, customer).plan()
         self.assertEqual("1|2", Flavor.list_code(result))
 
     def test_no_issue(self):
@@ -216,7 +247,7 @@ class Test(unittest.TestCase):
         c0 = Customer(Flavor(1, True))
         c1 = Customer(Flavor(1, False), Flavor(2, False))
         c2 = Customer(Flavor(5, False))
-        result = shop.best_planning(c0, c1, c2)
+        result = SmartFlavorPlanner(shop, c0, c1, c2).plan()
         self.assertEqual("1m|2|3|4|5", Flavor.list_code(result))
 
     def test_no_issue_smart_planning(self):
@@ -224,7 +255,7 @@ class Test(unittest.TestCase):
         c0 = Customer(Flavor(1, True))
         c1 = Customer(Flavor(1, False), Flavor(2, False))
         c2 = Customer(Flavor(5, False))
-        result = shop.smart_planning(c0, c1, c2)
+        result = SmartFlavorPlanner(shop, c0, c1, c2).plan()
         self.assertEqual("1m|2|3|4|5", Flavor.list_code(result))
 
     def test_invalid_solution(self):
@@ -251,7 +282,7 @@ class Test(unittest.TestCase):
         shop = MilkshakeShop(1)
         c0 = Customer(Flavor(1, False))
         c1 = Customer(Flavor(1, True))
-        self.assertIsNone(shop.best_planning(c0, c1))
+        self.assertIsNone(SmartFlavorPlanner(shop, c0, c1).plan())
 
     def test_parse_test_case(self):
         INPUT = """
@@ -320,7 +351,7 @@ def parse_test_case(f_in):
 
 def do_single(case):
     shop, customers = case
-    planning = shop.smart_planning(*customers)
+    planning = SmartFlavorPlanner(shop, *customers).plan()
     if planning is None:
         return "IMPOSSIBLE"
     return " ".join([str(int(f.is_malted)) for f in planning])
